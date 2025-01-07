@@ -43,7 +43,8 @@ if __name__ == "__main__":
         choice = input("Escolha uma opção: ")
         
         if choice == "1":
-            import SmartHomeGestures  # Executar o código de gestos
+            import SmartHomeGestures
+            SmartHomeGestures.main()  # Executar o main do módulo
         elif choice == "2":
             object_detection()  # Executar o código de deteção de objetos
         elif choice == "3":

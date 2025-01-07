@@ -37,9 +37,17 @@ def main():
 
     # Captura de vídeo
     cap = cv2.VideoCapture(0)
+
+    if not cap.isOpened():
+        print("Erro: Não foi possível acessar a câmera.")
+        return
+
+    print("Pressione 'q' para sair.")
+
     while True:
         ret, frame = cap.read()
         if not ret:
+            print("Erro ao capturar o frame. Saindo...")
             break
 
         # Detectar gestos
@@ -57,10 +65,12 @@ def main():
 
         # Encerrar ao pressionar a tecla 'q'
         if cv2.waitKey(1) & 0xFF == ord('q'):
+            print("Encerrando o programa...")
             break
 
     cap.release()
     cv2.destroyAllWindows()
 
+# Garante que o `main()` só será chamado quando o módulo for executado diretamente.
 if __name__ == "__main__":
     main()
