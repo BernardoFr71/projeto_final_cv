@@ -1,22 +1,29 @@
+# main.py ou mediapipe_gesture_recognition.py
 import socket
-import os
 
 def send_to_blender(command):
-    host = '127.0.0.1'
-    port = 5000
+    host = '127.0.0.1'  # Endereço local onde o Blender está ouvindo
+    port = 5000  # A mesma porta do servidor do Blender
 
-    try:
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect((host, port))
-        client.send(command.encode())  # Envia o comando ao Blender
-        print(f"Comando enviado: {command}")
-    except Exception as e:
-        print(f"Erro ao enviar comando: {e}")
-    finally:
-        client.close()
+    # Criação do socket para comunicação com o Blender
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client.connect((host, port))
 
-# Exemplo de uso com base no gesto detectado
-gesture = "move_object"
-if gesture == "move_object":
-    command = "bpy.data.objects['Cube'].location.x += 1"
-    send_to_blender(command)
+    # Enviar o comando para o Blender
+    client.sendall(command.encode())
+    client.close()
+
+def handle_gestures(fingers):
+    if fingers == 1:
+        # Envia comando para mudar a cor da esfera
+        send_to_blender("bpy.data.materials['Material.007'].node_tree.nodes['Emission'].inputs[0].default_value = (0.779711, 0.800126, 0.800126, 1)")  # Exemplo de comando
+
+# Monitoramento de gestos (simplificado)
+def detect_gestures(frame):
+    # ... lógica de MediaPipe para detectar gestos e contar dedos
+    fingers = 1  # Apenas como exemplo, você pode obter isso do MediaPipe.
+    handle_gestures(fingers)
+
+
+
+    
