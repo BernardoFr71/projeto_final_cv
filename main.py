@@ -46,9 +46,8 @@ if __name__ == "__main__":
             import SmartHomeGestures
             SmartHomeGestures.main()  # Executar o main do módulo
         elif choice == "2":
-            detector = ObjectDetection(model_path=model_path)
-
-            ObjectDetection.start_camera()  # Executar o código de deteção de objetos
+            detector = ObjectDetection(model_path="models/yolo11s.pt")
+            detector.start_camera_detection()
         elif choice == "3":
             print("Saindo...")
             break
