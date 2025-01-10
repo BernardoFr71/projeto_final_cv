@@ -1,8 +1,8 @@
 import cv2
-#from ObjectDetection import ObjectDetection
+from ObjectDetection import ObjectDetection
 
 # Configuração inicial
-model_path = "path/to/yolo/model.pt"  # Substituir pelo caminho real do modelo YOLO
+model_path = "/models/efficientdet_lite0.tflite"  # Substituir pelo caminho real do modelo YOLO
 image_folder = "objetos"  # Pasta com imagens para overlay
 
 def object_detection():
@@ -46,7 +46,9 @@ if __name__ == "__main__":
             import SmartHomeGestures
             SmartHomeGestures.main()  # Executar o main do módulo
         elif choice == "2":
-            object_detection()  # Executar o código de deteção de objetos
+            detector = ObjectDetection(model_path=model_path)
+
+            ObjectDetection.start_camera()  # Executar o código de deteção de objetos
         elif choice == "3":
             print("Saindo...")
             break
