@@ -3,7 +3,7 @@ import mediapipe as mp
 import json
 import socket
 import threading
-import time  # Para controlar o tempo do toque
+import time
 
 # Configurações globais
 json_data = {}
@@ -12,6 +12,9 @@ json_data = {}
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.7)
 mp_draw = mp.solutions.drawing_utils
+
+# Variável para controle do tempo do toque
+last_touch_time = 0
 
 # Função para detectar gestos
 def detect_gestures(frame):
@@ -77,8 +80,6 @@ def main_menu():
     cortinas_abertas = False
     temperatura = 22  # Temperatura inicial
     tv_ligada = False  # Variável para TV
-    led_on = False  # Controle para saber se o LED foi alterado pelo toque do polegar e indicador
-    touch_start_time = None  # Inicializa o tempo de toque
     touch_count = 0  # Contador de toques
 
     while True:
@@ -100,55 +101,32 @@ def main_menu():
 
         # Exibe status atual
         cv2.putText(frame, f"Luz: {'ON' if luz else 'OFF'}", (10, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        cv2.putText(frame, f"Volume: {volume}", (10, 250), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        cv2.putText(frame, f"Cortinas: {'Abertas' if cortinas_abertas else 'Fechadas'}", (10, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        cv2.putText(frame, f"Temperatura: {temperatura} C", (10, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        cv2.putText(frame, f"TV: {'ON' if tv_ligada else 'OFF'}", (10, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
         # Identificar o gesto
         for hand_label, hand_info in gestures.items():
             fingers = hand_info["fingers_up"]
             hand_landmarks = hand_info["hand_landmarks"]
-            cv2.putText(frame, f"{hand_label} HAND: {fingers} dedo/s", (10, 350), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
-
-            # 1 dedo levantado: Controla a luz
-            if fingers == 1 and not luz:
-                json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.136535, 0.800149, 0.0275523, 1)"
-                luz = True
-            elif fingers == 2 and luz:
-                luz = False
-                json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.769648, 0.800157, 0.739828, 1)"
-
-            # 2 dedos levantados: Ajusta o volume
-            elif fingers == 2:
-                volume = min(volume + 1, 10)  # Aumenta o volume
-            elif fingers == 3:
-                volume = max(volume - 1, 0)  # Diminui o volume
-
-            # 3 dedos levantados: Controla cortinas
-            elif fingers == 3:
-                cortinas_abertas = not cortinas_abertas
-
-            # 4 dedos levantados: Ajusta a temperatura
-            elif fingers == 4:
-                temperatura += 1
-            elif fingers == 5:
-                temperatura -= 1
 
             # Detecção de toque entre polegar e indicador
-            if detect_thumb_index_touch(hand_landmarks):
-                # Se o toque foi detectado por 1 segundo ou mais
-                if touch_start_time is None:
-                    touch_start_time = time.time()
-                elif time.time() - touch_start_time > 1.0:  # 1 segundo de toque contínuo
-                    if touch_count % 2 == 0:
-                        json_data["command"] = "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.800071, 0.00497789, 0.0100464, 1)"
-                        print("Polegar e indicador tocando por 1 segundo! Cor do LED alterada para a primeira cor.")
-                    else:
-                        json_data["command"] = "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.771298, 0.800079, 0.778437, 1)"
-                        print("Polegar e indicador tocando por 1 segundo! Cor do LED alterada para a segunda cor.")
-                    touch_count += 1
-                    touch_start_time = None  # Reseta o tempo de toque
+            global last_touch_time
+            current_time = time.time()
+            if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
+                last_touch_time = current_time
+                if touch_count % 2 == 0:
+                    json_data["command"] = (
+                        "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = "
+                        "(0.800071, 0.00497789, 0.0100464, 1); "
+                        "bpy.data.materials[\"screen\"].node_tree.nodes[\"Mix Shader\"].inputs[0].default_value = 0.856396"
+                    )
+                    luz = True
+                else:
+                    json_data["command"] = (
+                        "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = "
+                        "(0.771298, 0.800079, 0.778437, 1); "
+                        "bpy.data.materials[\"screen\"].node_tree.nodes[\"Mix Shader\"].inputs[0].default_value = 0.14211"
+                    )
+                    luz = False
+                touch_count += 1
 
         # Mostra o frame
         cv2.imshow("Camera", frame)
