@@ -61,6 +61,7 @@ def count_fingers(hand_landmarks):
 
 # Função para detectar o toque entre o polegar e o indicador
 def detect_thumb_index_touch(hand_landmarks):
+    global last_touch_time  # Declarando a variável global aqui
     thumb_tip = hand_landmarks.landmark[4]  # Posição do polegar
     index_tip = hand_landmarks.landmark[8]  # Posição do dedo indicador
 
@@ -74,12 +75,12 @@ def detect_thumb_index_touch(hand_landmarks):
 
 # Função principal do menu
 def main_menu():
+    global last_touch_time  # Declarando a variável global aqui
     cap = cv2.VideoCapture(0)
     luz = False
     volume = 5
     cortinas_abertas = False
     temperatura = 22  # Temperatura inicial
-    tv_ligada = False  # Variável para TV
     touch_count = 0  # Contador de toques
 
     while True:
@@ -97,36 +98,82 @@ def main_menu():
         cv2.putText(frame, "2: Ajustar Volume (+/-)", (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         cv2.putText(frame, "3: Abrir/Fechar Cortinas", (20, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         cv2.putText(frame, "4: Ajustar Temperatura", (20, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        cv2.putText(frame, "5: Liga/Desliga TV", (20, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         # Exibe status atual
         cv2.putText(frame, f"Luz: {'ON' if luz else 'OFF'}", (10, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.putText(frame, f"Volume: {volume}", (10, 250), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.putText(frame, f"Cortinas: {'Abertas' if cortinas_abertas else 'Fechadas'}", (10, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.putText(frame, f"Temperatura: {temperatura} C", (10, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
         # Identificar o gesto
-        for hand_label, hand_info in gestures.items():
+        for hand, hand_info in gestures.items():
             fingers = hand_info["fingers_up"]
             hand_landmarks = hand_info["hand_landmarks"]
 
-            # Detecção de toque entre polegar e indicador
-            global last_touch_time
             current_time = time.time()
             if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
                 last_touch_time = current_time
                 if touch_count % 2 == 0:
                     json_data["command"] = (
                         "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = "
-                        "(0.800071, 0.00497789, 0.0100464, 1); "
-                        "bpy.data.materials[\"screen\"].node_tree.nodes[\"Mix Shader\"].inputs[0].default_value = 0.856396"
+                        "(0.800071, 0.00497789, 0.0100464, 1); "  # Luz ligada
+                        "bpy.data.materials[\"screen\"].node_tree.nodes[\"Mix Shader\"].inputs[0].default_value = 0.856396"  # TV ligada
                     )
                     luz = True
                 else:
                     json_data["command"] = (
                         "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = "
-                        "(0.771298, 0.800079, 0.778437, 1); "
-                        "bpy.data.materials[\"screen\"].node_tree.nodes[\"Mix Shader\"].inputs[0].default_value = 0.14211"
+                        "(0.771298, 0.800079, 0.778437, 1); "  # Luz desligada
+                        "bpy.data.materials[\"screen\"].node_tree.nodes[\"Mix Shader\"].inputs[0].default_value = 0.14211"  # TV desligada
                     )
                     luz = False
                 touch_count += 1
+
+            # Exibe número de dedos levantados
+            cv2.putText(frame, f"{hand} HAND: {fingers} dedo/s", (10, 350), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+
+            # 1 dedo levantado: Controla a luz
+            if fingers == 1 and not luz:
+                json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.136535, 0.800149, 0.0275523, 1)"
+                luz = True
+            elif fingers == 2 and luz:
+                luz = False
+                json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.769648, 0.800157, 0.739828, 1)"
+
+            # 2 dedos levantados: Ajusta o volume
+            elif fingers == 2:
+                volume = min(volume + 1, 10)  # Aumenta o volume
+            elif fingers == 3:
+                volume = max(volume - 1, 0)  # Diminui o volume
+
+            # 3 dedos levantados: Controla cortinas
+            elif fingers == 3:
+                cortinas_abertas = not cortinas_abertas
+
+            # 4 dedos levantados: Ajusta a temperatura
+            elif fingers == 4:
+                temperatura += 1
+            elif fingers == 5:
+                temperatura -= 1
+
+            # Detecção de toque entre polegar e indicador
+            if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
+                last_touch_time = current_time
+                touch_count += 1
+                if touch_count % 3 == 0:  # Alterna entre Luz, Volume, Cortinas
+                    luz = True
+                    cortinas_abertas = False
+                    volume = 5
+                    json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.136535, 0.800149, 0.0275523, 1)"
+                elif touch_count % 3 == 1:  # Alterna volume
+                    luz = False
+                    cortinas_abertas = False
+                    volume = 10
+                    json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.769648, 0.800157, 0.739828, 1)"
+                else:  # Alterna cortinas
+                    luz = False
+                    cortinas_abertas = True
+                    volume = 5
 
         # Mostra o frame
         cv2.imshow("Camera", frame)
@@ -182,3 +229,6 @@ def start_server():
     threading.Thread(target=accept_connections, daemon=True).start()
     main_menu()
     print("Servidor está prontíssimo. Pressiona 'Q' para parar.")
+
+# Inicia o servidor
+start_server
