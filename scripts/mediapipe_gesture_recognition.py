@@ -3,6 +3,7 @@ import mediapipe as mp
 import json
 import socket
 import threading
+import time  # Para controlar o tempo do toque
 
 # Configurações globais
 json_data = {}
@@ -23,7 +24,7 @@ def detect_gestures(frame):
             mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
             hand_label = hand_type.classification[0].label  # 'Left' ou 'Right'
             fingers_up = count_fingers(hand_landmarks)
-            gestures[hand_label] = fingers_up
+            gestures[hand_label] = {"fingers_up": fingers_up, "hand_landmarks": hand_landmarks}
 
     return gestures
 
@@ -55,6 +56,19 @@ def count_fingers(hand_landmarks):
 
     return sum(fingers)
 
+# Função para detectar o toque entre o polegar e o indicador
+def detect_thumb_index_touch(hand_landmarks):
+    thumb_tip = hand_landmarks.landmark[4]  # Posição do polegar
+    index_tip = hand_landmarks.landmark[8]  # Posição do dedo indicador
+
+    # Calcular a distância entre o polegar e o indicador
+    distance = ((thumb_tip.x - index_tip.x) ** 2 + (thumb_tip.y - index_tip.y) ** 2) ** 0.5
+
+    # Se a distância entre os dois for muito pequena, consideramos que eles estão tocando
+    if distance < 0.05:  # Ajuste esse valor para sua necessidade
+        return True
+    return False
+
 # Função principal do menu
 def main_menu():
     cap = cv2.VideoCapture(0)
@@ -62,6 +76,10 @@ def main_menu():
     volume = 5
     cortinas_abertas = False
     temperatura = 22  # Temperatura inicial
+    tv_ligada = False  # Variável para TV
+    led_on = False  # Controle para saber se o LED foi alterado pelo toque do polegar e indicador
+    touch_start_time = None  # Inicializa o tempo de toque
+    touch_count = 0  # Contador de toques
 
     while True:
         ret, frame = cap.read()
@@ -78,16 +96,20 @@ def main_menu():
         cv2.putText(frame, "2: Ajustar Volume (+/-)", (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         cv2.putText(frame, "3: Abrir/Fechar Cortinas", (20, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         cv2.putText(frame, "4: Ajustar Temperatura", (20, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cv2.putText(frame, "5: Liga/Desliga TV", (20, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         # Exibe status atual
         cv2.putText(frame, f"Luz: {'ON' if luz else 'OFF'}", (10, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         cv2.putText(frame, f"Volume: {volume}", (10, 250), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         cv2.putText(frame, f"Cortinas: {'Abertas' if cortinas_abertas else 'Fechadas'}", (10, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         cv2.putText(frame, f"Temperatura: {temperatura} C", (10, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.putText(frame, f"TV: {'ON' if tv_ligada else 'OFF'}", (10, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
         # Identificar o gesto
-        for hand, fingers in gestures.items():
-            cv2.putText(frame, f"{hand} HAND: {fingers} dedo/s", (10, 350), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+        for hand_label, hand_info in gestures.items():
+            fingers = hand_info["fingers_up"]
+            hand_landmarks = hand_info["hand_landmarks"]
+            cv2.putText(frame, f"{hand_label} HAND: {fingers} dedo/s", (10, 350), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
             # 1 dedo levantado: Controla a luz
             if fingers == 1 and not luz:
@@ -112,6 +134,21 @@ def main_menu():
                 temperatura += 1
             elif fingers == 5:
                 temperatura -= 1
+
+            # Detecção de toque entre polegar e indicador
+            if detect_thumb_index_touch(hand_landmarks):
+                # Se o toque foi detectado por 1 segundo ou mais
+                if touch_start_time is None:
+                    touch_start_time = time.time()
+                elif time.time() - touch_start_time > 1.0:  # 1 segundo de toque contínuo
+                    if touch_count % 2 == 0:
+                        json_data["command"] = "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.800071, 0.00497789, 0.0100464, 1)"
+                        print("Polegar e indicador tocando por 1 segundo! Cor do LED alterada para a primeira cor.")
+                    else:
+                        json_data["command"] = "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.771298, 0.800079, 0.778437, 1)"
+                        print("Polegar e indicador tocando por 1 segundo! Cor do LED alterada para a segunda cor.")
+                    touch_count += 1
+                    touch_start_time = None  # Reseta o tempo de toque
 
         # Mostra o frame
         cv2.imshow("Camera", frame)
@@ -166,4 +203,4 @@ def start_server():
 
     threading.Thread(target=accept_connections, daemon=True).start()
     main_menu()
-    print("Servidor está prontissimo. Pressiona 'Q' para parar.")
+    print("Servidor está prontíssimo. Pressiona 'Q' para parar.")
