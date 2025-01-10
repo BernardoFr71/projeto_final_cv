@@ -185,7 +185,7 @@ def main_menu():
     cap.release()
     cv2.destroyAllWindows()
 
-# Função do servidor
+# Função do servidor --
 def start_server():
     host = "127.0.0.1"
     port = 5000
