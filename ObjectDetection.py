@@ -4,7 +4,6 @@ import numpy as np
 import time
 from threading import Thread
 from ultralytics import YOLO
-import torch
 
 
 class ObjectDetection:
@@ -18,8 +17,6 @@ class ObjectDetection:
         movement_threshold=1,
     ):
         self.model = YOLO(model_path)
-        if torch.cuda.is_available():
-            self.model.to("cuda")  # Aproveita a GPU se disponível
         self.conf_threshold = conf_threshold
         self.rectangle_thickness = rectangle_thickness
         self.text_thickness = text_thickness
