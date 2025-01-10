@@ -1,93 +1,187 @@
 import cv2
-import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
+import os
+import numpy as np
+import time
+from threading import Thread
+from ultralytics import YOLO
+import torch
 
 
 class ObjectDetection:
-    def __init__(self, model_path=None, score_threshold=0.5):
-        """
-        Inicializa a classe de detecção de objetos usando EfficientDet-Lite0.
+    def __init__(
+        self,
+        model_path=None,
+        conf_threshold=0.5,
+        rectangle_thickness=2,
+        text_thickness=1,
+        image_folder="objetos",
+        movement_threshold=1,
+    ):
+        self.model = YOLO(model_path)
+        if torch.cuda.is_available():
+            self.model.to("cuda")  # Aproveita a GPU se disponível
+        self.conf_threshold = conf_threshold
+        self.rectangle_thickness = rectangle_thickness
+        self.text_thickness = text_thickness
+        self.image_folder = image_folder
+        self.movement_threshold = movement_threshold  # Limiar de movimento
+        self.overlay_images = self.load_overlay_images()
+        self.previous_positions = {}  # Armazena posições anteriores dos objetos por classe
 
-        :param model_path: Caminho para o modelo pré-treinado (opcional).
-        :param score_threshold: Limiar de confiança para considerar uma detecção válida.
-        """
-        self.score_threshold = score_threshold
+    def load_overlay_images(self):
+        overlay_images = {}
+        for filename in os.listdir(self.image_folder):
+            class_name, ext = os.path.splitext(filename)
+            if ext.lower() in [".png", ".jpg", ".jpeg"]:
+                img_path = os.path.join(self.image_folder, filename)
+                overlay_images[class_name] = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+        return overlay_images
 
-        base_options = python.BaseOptions(model_asset_path='models/efficientdet_lite0.tflite')
-        options = vision.ObjectDetectorOptions(base_options=base_options,
-                                               score_threshold=0.5)
-        detector = vision.ObjectDetector.create_from_options(options)
+    def overlay_image(self, background, overlay, x, y, width, height):
+        if overlay.shape[2] == 4:  # Imagem RGBA
+            alpha = overlay[:, :, 3]
+            coords = cv2.findNonZero(alpha)  # Localiza os pixels com transparência > 0
+            if coords is not None:
+                x_min, y_min, w, h = cv2.boundingRect(coords)  # Calcula o retângulo delimitador
+                overlay_cropped = overlay[y_min:y_min+h, x_min:x_min+w]  # Recorta a região de interesse
+            else:
+                return  # Se não houver pixels visíveis, nada é sobreposto
+        else:
+            overlay_cropped = overlay  # Sem canal alfa, usa a imagem inteira
 
-    def detect(self, frame):
-        """
-        Executa a detecção de objetos em um frame.
+        # Redimensiona a área recortada para o tamanho do objeto detectado.
+        overlay_resized = cv2.resize(overlay_cropped, (width, height))
 
-        :param frame: Imagem do OpenCV (BGR).
-        :return: Lista de objetos detectados com coordenadas e pontuações.
-        """
-        # Converte o frame para RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Aplica a imagem sobreposta no background
+        if overlay_resized.shape[2] == 4:  # Com canal alfa
+            alpha = overlay_resized[:, :, 3] / 255.0  # Normaliza o canal alfa (0-1)
+            for c in range(0, 3):  # Itera pelos canais RGB
+                background[y:y+height, x:x+width, c] = (
+                    alpha * overlay_resized[:, :, c] +  # Combina com a imagem original
+                    (1 - alpha) * background[y:y+height, x:x+width, c]
+                )
+        else:  # Sem canal alfa
+            background[y:y+height, x:x+width] = overlay_resized
 
-        # Converte para formato compatível com MediaPipe
-        image = self.mp_vision.Image(image_format=self.mp_vision.ImageFormat.SRGB, data=rgb_frame)
+    def is_moving(self, class_name, position):
+        #Verifica se a posição do objeto mudou em relação ao quadro anterior.
+        if class_name not in self.previous_positions:
+            self.previous_positions[class_name] = position
+            return False
 
-        # Realiza a detecção
-        detection_result = self.detector.detect(image)
+        x1_prev, y1_prev, x2_prev, y2_prev = self.previous_positions[class_name]
+        x1, y1, x2, y2 = position
 
-        # Extrai os resultados
+        # Calcula o deslocamento da posição
+        movement = np.sqrt((x1 - x1_prev)**2 + (y1 - y1_prev)**2)
+        self.previous_positions[class_name] = position
+
+        # Retorna True se o movimento for maior que o limiar
+        return movement > self.movement_threshold
+
+    def predict_and_detect(self, img, classes=[]):
+        results = self.predict(img, classes)
+
+        # Lista de objetos detectados com informações
         detected_objects = []
-        for detection in detection_result.detections:
-            bbox = detection.bounding_box
-            detected_objects.append({
-                "class_name": detection.categories[0].category_name,
-                "score": detection.categories[0].score,
-                "bbox": (bbox.origin_x, bbox.origin_y, bbox.width, bbox.height)
-            })
 
-        return detected_objects
+        for result in results:
+            for box in result.boxes:
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                area = (x2 - x1) * (y2 - y1)
+                class_idx = int(box.cls[0])
+                class_name = result.names[class_idx]
 
-    def draw_detections(self, frame, detected_objects):
-        """
-        Desenha as detecções na imagem.
+                # Ignora objetos da classe "person"
+                if class_name == "person":
+                    continue
 
-        :param frame: Imagem do OpenCV (BGR).
-        :param detected_objects: Lista de objetos detectados.
-        :return: Imagem com as detecções desenhadas.
-        """
+                detected_objects.append({
+                    "class_name": class_name,
+                    "position": (x1, y1, x2, y2),
+                    "area": area,
+                })
+
+        # Filtra apenas os objetos em movimento
+        moving_objects = [
+            obj for obj in detected_objects
+            if self.is_moving(obj["class_name"], obj["position"])
+        ]
+
+        # Determina o maior objeto em movimento
+        largest_moving_object = max(
+            moving_objects, key=lambda obj: obj["area"], default=None
+        )
+
+        # Marca todos os objetos (exceto "person")
         for obj in detected_objects:
-            x, y, w, h = obj["bbox"]
+            x1, y1, x2, y2 = obj["position"]
             class_name = obj["class_name"]
-            score = obj["score"]
 
-            # Desenha o retângulo da bounding box
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.rectangle(
+                img, (x1, y1), (x2, y2), (255, 0, 0), self.rectangle_thickness
+            )
+            cv2.putText(
+                img,
+                f"{class_name}",
+                (x1, y1 - 10),
+                cv2.FONT_HERSHEY_PLAIN,
+                1,
+                (255, 0, 0),
+                self.text_thickness,
+            )
 
-            # Escreve o nome da classe e a pontuação
-            label = f"{class_name}: {score:.2f}"
-            cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        # Faz overlay no maior objeto em movimento
+        if largest_moving_object:
+            x1, y1, x2, y2 = largest_moving_object["position"]
+            class_name = largest_moving_object["class_name"]
 
-        return frame
+            if class_name in self.overlay_images:
+                width, height = x2 - x1, y2 - y1
+                self.overlay_image(
+                    img, self.overlay_images[class_name], x1, y1, width, height
+                )
 
-    def start_camera(self):
-        """
-        Inicia a câmera para detecção em tempo real.
-        """
+        return img, results
+
+    def predict(self, img, classes=None):
+        if classes is None:
+            classes = []
+        if classes:
+            results = self.model.predict(
+                img, classes=classes, conf=self.conf_threshold, verbose=False
+            )
+        else:
+            results = self.model.predict(img, conf=self.conf_threshold, verbose=False)
+        return results
+
+    def start_camera_detection(self):
         cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
-            print("Erro ao abrir a câmera.")
-            return
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Reduz a resolução para melhorar o desempenho
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
         while True:
+            start_time = time.time()  # Início da contagem para FPS
             ret, frame = cap.read()
             if not ret:
+                print("Error capturing video.")
                 break
 
-            detected_objects = self.detect(frame)
-            annotated_frame = self.draw_detections(frame, detected_objects)
+            result_img, _ = self.predict_and_detect(frame)
 
-            # Exibe o resultado
-            cv2.imshow("Detecção de Objetos", annotated_frame)
+            # Calcula e exibe o FPS
+            fps = int(1 / (time.time() - start_time))
+            cv2.putText(
+                result_img,
+                f"FPS: {fps}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 255, 0),
+                2,
+            )
+
+            cv2.imshow("Object Detection", result_img)
 
             if cv2.waitKey(1) & 0xFF == 27:  # Pressione Esc para sair
                 break
