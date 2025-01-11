@@ -99,17 +99,6 @@ class ObjectDetection:
                     "area": area,
                 })
 
-        # Filtra apenas os objetos em movimento
-        moving_objects = [
-            obj for obj in detected_objects
-            if self.is_moving(obj["class_name"], obj["position"])
-        ]
-
-        # Determina o maior objeto em movimento
-        largest_moving_object = max(
-            moving_objects, key=lambda obj: obj["area"], default=None
-        )
-
         # Marca todos os objetos (exceto "person")
         for obj in detected_objects:
             x1, y1, x2, y2 = obj["position"]
@@ -128,18 +117,7 @@ class ObjectDetection:
                 self.text_thickness,
             )
 
-        # Faz overlay no maior objeto em movimento
-        if largest_moving_object:
-            x1, y1, x2, y2 = largest_moving_object["position"]
-            class_name = largest_moving_object["class_name"]
-
-            if class_name in self.overlay_images:
-                width, height = x2 - x1, y2 - y1
-                self.overlay_image(
-                    img, self.overlay_images[class_name], x1, y1, width, height
-                )
-
-        return img, results
+        return img, results, detected_objects
 
     def predict(self, img, classes=None):
         if classes is None:
