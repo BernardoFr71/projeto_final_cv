@@ -20,6 +20,15 @@ detector = ObjectDetection(model_path="caminho/para/o/modelo.pt")
 # Variável para controle do tempo do toque
 last_touch_time = 0
 
+#Lista para mostrar objeto a ser controlado
+object_control_mapping = {
+    "remote": "TV",
+    "cup": "Lâmpada",
+    "cell phone": "Cortinas",
+    "book": "Ar condicionado"
+}
+
+
 # Função para detectar gestos
 def detect_gestures(frame):
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
