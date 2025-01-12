@@ -60,21 +60,7 @@ class ObjectDetection:
         else:  # Sem canal alfa
             background[y:y+height, x:x+width] = overlay_resized
 
-    def is_moving(self, class_name, position):
-        #Verifica se a posição do objeto mudou em relação ao quadro anterior.
-        if class_name not in self.previous_positions:
-            self.previous_positions[class_name] = position
-            return False
 
-        x1_prev, y1_prev, x2_prev, y2_prev = self.previous_positions[class_name]
-        x1, y1, x2, y2 = position
-
-        # Calcula o deslocamento da posição
-        movement = np.sqrt((x1 - x1_prev)**2 + (y1 - y1_prev)**2)
-        self.previous_positions[class_name] = position
-
-        # Retorna True se o movimento for maior que o limiar
-        return movement > self.movement_threshold
 
     def predict_and_detect(self, img, classes=[]):
         results = self.predict(img, classes)
