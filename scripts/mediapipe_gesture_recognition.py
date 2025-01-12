@@ -4,7 +4,6 @@ import json
 import socket
 import threading
 import time
-from ObjectDetection import ObjectDetection
 
 # Configurações globais
 json_data = {}
@@ -15,7 +14,7 @@ hands = mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.7)
 mp_draw = mp.solutions.drawing_utils
 
 #Instancia do detetor de objetos
-detector = ObjectDetection(model_path="caminho/para/o/modelo.pt")
+#detector = ObjectDetection(model_path="caminho/para/o/modelo.pt")
 
 # Variável para controle do tempo do toque
 last_touch_time = 0
