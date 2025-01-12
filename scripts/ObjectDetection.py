@@ -25,41 +25,8 @@ class ObjectDetection:
         self.overlay_images = self.load_overlay_images()
         self.previous_positions = {}  # Armazena posições anteriores dos objetos por classe
 
-    def load_overlay_images(self):
-        overlay_images = {}
-        for filename in os.listdir(self.image_folder):
-            class_name, ext = os.path.splitext(filename)
-            if ext.lower() in [".png", ".jpg", ".jpeg"]:
-                img_path = os.path.join(self.image_folder, filename)
-                overlay_images[class_name] = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
-        return overlay_images
-
-    def overlay_image(self, background, overlay, x, y, width, height):
-        if overlay.shape[2] == 4:  # Imagem RGBA
-            alpha = overlay[:, :, 3]
-            coords = cv2.findNonZero(alpha)  # Localiza os pixels com transparência > 0
-            if coords is not None:
-                x_min, y_min, w, h = cv2.boundingRect(coords)  # Calcula o retângulo delimitador
-                overlay_cropped = overlay[y_min:y_min+h, x_min:x_min+w]  # Recorta a região de interesse
-            else:
-                return  # Se não houver pixels visíveis, nada é sobreposto
-        else:
-            overlay_cropped = overlay  # Sem canal alfa, usa a imagem inteira
-
-        # Redimensiona a área recortada para o tamanho do objeto detectado.
-        overlay_resized = cv2.resize(overlay_cropped, (width, height))
-
-        # Aplica a imagem sobreposta no background
-        if overlay_resized.shape[2] == 4:  # Com canal alfa
-            alpha = overlay_resized[:, :, 3] / 255.0  # Normaliza o canal alfa (0-1)
-            for c in range(0, 3):  # Itera pelos canais RGB
-                background[y:y+height, x:x+width, c] = (
-                    alpha * overlay_resized[:, :, c] +  # Combina com a imagem original
-                    (1 - alpha) * background[y:y+height, x:x+width, c]
-                )
-        else:  # Sem canal alfa
-            background[y:y+height, x:x+width] = overlay_resized
-
+        load_overlay_images
+        overlay_image
 
 
     def predict_and_detect(self, img, classes=[]):
