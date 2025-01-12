@@ -5,7 +5,6 @@ import time
 from threading import Thread
 from ultralytics import YOLO
 
-
 class ObjectDetection:
     def __init__(
         self,
@@ -15,25 +14,24 @@ class ObjectDetection:
         self.model = YOLO(model_path)
         self.conf_threshold = conf_threshold
 
-        self.target_classes = ["remote", "cup", "cell phone", "wallet"]
+        self.target_classes = ["remote", "cup", "cell phone", "book"]
         self.classes_index = self.get_class_index()
 
-
     def get_class_index(self):
-        # Obter o mapeamento de nomes das classes para índices
-        class_index = []
-        for name, idx in self.model.names.items():
-            if name in self.target_classes:
-                class_index.append(idx)
+        # Iterar sobre os índices e nomes das classes no dicionário
+        class_index = [idx for idx, name in self.model.names.items() if name in self.target_classes]
         return class_index
 
     def predict(self, img):
         if self.target_classes:
+            #print(f"Modelo carregado com as seguintes classes: {self.model.names}")
+            #print(f"Classes indexadas: {self.classes_index}")
             results = self.model.predict(
                 img, classes=self.classes_index, conf=self.conf_threshold, verbose=False)
 
         else:
             results = self.model.predict(img, conf=self.conf_threshold, verbose=False)
+
         return results
 
     def predict_and_detect(self, img, classes=[]):
@@ -49,10 +47,6 @@ class ObjectDetection:
                 class_idx = int(box.cls[0])
                 class_name = result.names[class_idx]
 
-                # Ignora objetos da classe "person"
-                if class_name == "person":
-                    continue
-
                 detected_objects.append({
                     "class_name": class_name,
                     "position": (x1, y1, x2, y2),
@@ -61,38 +55,28 @@ class ObjectDetection:
 
         return detected_objects
 
+# Exemplo de uso
+if __name__ == "__main__":
+    model_path = "C:/Users/tanastacio/Desktop/Universidade/3ano/Computação Visual/PF/projeto_final_cv/models/yolo11s.pt"
+    detector = ObjectDetection(model_path=model_path)
 
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Reduz a resolução para melhorar o desempenho
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    def start_camera_detection(self):
-        cap = cv2.VideoCapture(0)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Reduz a resolução para melhorar o desempenho
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Error capturing video.")
+            break
 
-        while True:
-            start_time = time.time()  # Início da contagem para FPS
-            ret, frame = cap.read()
-            if not ret:
-                print("Error capturing video.")
-                break
+        detected_objects = detector.predict_and_detect(frame)
 
-            result_img, _ = self.predict_and_detect(frame)
+        print(detected_objects)  # Exibe os objetos detectados
 
-            # Calcula e exibe o FPS
-            fps = int(1 / (time.time() - start_time))
-            cv2.putText(
-                result_img,
-                f"FPS: {fps}",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 255, 0),
-                2,
-            )
+        if cv2.waitKey(1) & 0xFF == 27:  # Pressione Esc para sair
+            break
 
-            cv2.imshow("Object Detection", result_img)
+    cap.release()
+    cv2.destroyAllWindows()
 
-            if cv2.waitKey(1) & 0xFF == 27:  # Pressione Esc para sair
-                break
-
-        cap.release()
-        cv2.destroyAllWindows()

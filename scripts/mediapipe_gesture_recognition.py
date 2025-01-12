@@ -4,6 +4,7 @@ import json
 import socket
 import threading
 import time
+from ObjectDetection import ObjectDetection
 
 # Configurações globais
 json_data = {}
@@ -12,6 +13,9 @@ json_data = {}
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.7)
 mp_draw = mp.solutions.drawing_utils
+
+#Instancia do detetor de objetos
+detector = ObjectDetection(model_path="caminho/para/o/modelo.pt")
 
 # Variável para controle do tempo do toque
 last_touch_time = 0
@@ -110,6 +114,7 @@ def main_menu():
             fingers = hand_info["fingers_up"]
             hand_landmarks = hand_info["hand_landmarks"]
 
+            #Controlos de TV
             current_time = time.time()
             if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
                 last_touch_time = current_time
@@ -132,6 +137,7 @@ def main_menu():
             # Exibe número de dedos levantados
             cv2.putText(frame, f"{hand} HAND: {fingers} dedo/s", (10, 350), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
+            #controlos de luz
             # 1 dedo levantado: Controla a luz
             if fingers == 1 and not luz:
                 json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.136535, 0.800149, 0.0275523, 1)"
@@ -141,15 +147,17 @@ def main_menu():
                 json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.769648, 0.800157, 0.739828, 1)"
 
             # 2 dedos levantados: Ajusta o volume
-            elif fingers == 2:
-                volume = min(volume + 1, 10)  # Aumenta o volume
-            elif fingers == 3:
-                volume = max(volume - 1, 0)  # Diminui o volume
+            # elif fingers == 2:
+            #     volume = min(volume + 1, 10)  # Aumenta o volume
+            # elif fingers == 3:
+            #     volume = max(volume - 1, 0)  # Diminui o volume
 
+            #Controlo de cortinas
             # 3 dedos levantados: Controla cortinas
             elif fingers == 3:
                 cortinas_abertas = not cortinas_abertas
 
+            #Controlo de Ar Condicionado
             # 4 dedos levantados: Ajusta a temperatura
             elif fingers == 4:
                 temperatura += 1
