@@ -9,28 +9,35 @@ from ultralytics import YOLO
 class ObjectDetection:
     def __init__(
         self,
-        model_path=None,
-        conf_threshold=0.5,
-        rectangle_thickness=2,
-        text_thickness=1,
-        image_folder="objetos",
-        movement_threshold=1,
+        model_path = None,
+        conf_threshold = 0.5,
     ):
         self.model = YOLO(model_path)
         self.conf_threshold = conf_threshold
-        self.rectangle_thickness = rectangle_thickness
-        self.text_thickness = text_thickness
-        self.image_folder = image_folder
-        self.movement_threshold = movement_threshold  # Limiar de movimento
-        self.overlay_images = self.load_overlay_images()
-        self.previous_positions = {}  # Armazena posições anteriores dos objetos por classe
 
-        load_overlay_images
-        overlay_image
+        self.target_classes = ["remote", "cup", "cell phone", "wallet"]
+        self.classes_index = self.get_class_index()
 
+
+    def get_class_index(self):
+        # Obter o mapeamento de nomes das classes para índices
+        class_index = []
+        for name, idx in self.model.names.items():
+            if name in self.target_classes:
+                class_index.append(idx)
+        return class_index
+
+    def predict(self, img):
+        if self.target_classes:
+            results = self.model.predict(
+                img, classes=self.classes_index, conf=self.conf_threshold, verbose=False)
+
+        else:
+            results = self.model.predict(img, conf=self.conf_threshold, verbose=False)
+        return results
 
     def predict_and_detect(self, img, classes=[]):
-        results = self.predict(img, classes)
+        results = self.predict(img)
 
         # Lista de objetos detectados com informações
         detected_objects = []
@@ -52,36 +59,9 @@ class ObjectDetection:
                     "area": area,
                 })
 
-        # Marca todos os objetos (exceto "person")
-        for obj in detected_objects:
-            x1, y1, x2, y2 = obj["position"]
-            class_name = obj["class_name"]
+        return detected_objects
 
-            cv2.rectangle(
-                img, (x1, y1), (x2, y2), (255, 0, 0), self.rectangle_thickness
-            )
-            cv2.putText(
-                img,
-                f"{class_name}",
-                (x1, y1 - 10),
-                cv2.FONT_HERSHEY_PLAIN,
-                1,
-                (255, 0, 0),
-                self.text_thickness,
-            )
 
-        return img, results, detected_objects
-
-    def predict(self, img, classes=None):
-        if classes is None:
-            classes = []
-        if classes:
-            results = self.model.predict(
-                img, classes=classes, conf=self.conf_threshold, verbose=False
-            )
-        else:
-            results = self.model.predict(img, conf=self.conf_threshold, verbose=False)
-        return results
 
     def start_camera_detection(self):
         cap = cv2.VideoCapture(0)
