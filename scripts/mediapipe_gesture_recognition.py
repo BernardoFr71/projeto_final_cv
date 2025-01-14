@@ -153,19 +153,21 @@ def main_menu():
             # 4 dedos levantados: Ajusta a temperatura
             elif fingers == 4:
                 temperatura += 1
-            elif fingers == 5:
-                temperatura -= 1
+            elif hand=="Left" and fingers == 5:
+                json_data["command"] = "bpy.ops.screen.animation_play()"
+            else:
+                json_data['command'] = ""
 
             # Detecção de toque entre polegar e indicador
             if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
                 last_touch_time = current_time
                 touch_count += 1
-                if touch_count % 3 == 0:  # Alterna entre Luz, Volume, Cortinas
+                if hand=="Right" and touch_count % 3 == 0:  # Alterna entre Luz, Volume, Cortinas
                     luz = True
                     cortinas_abertas = False
                     volume = 5
                     json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.136535, 0.800149, 0.0275523, 1)"
-                elif touch_count % 3 == 1:  # Alterna volume
+                elif hand=="Right" and touch_count % 3 == 1:  # Alterna volume
                     luz = False
                     cortinas_abertas = False
                     volume = 10
