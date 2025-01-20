@@ -4,7 +4,6 @@ import json
 import socket
 import threading
 import time
-from ObjectDetection import ObjectDetection
 
 # Configurações globais
 json_data = {}
@@ -13,9 +12,6 @@ json_data = {}
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.7)
 mp_draw = mp.solutions.drawing_utils
-
-#Instancia do detetor de objetos
-detector = ObjectDetection(model_path="caminho/para/o/modelo.pt")
 
 # Variável para controle do tempo do toque
 last_touch_time = 0
@@ -104,7 +100,7 @@ def main_menu():
         cv2.putText(frame, "4: Ajustar Temperatura", (20, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         # Exibe status atual
-        cv2.putText(frame, f"Luz: {'ON' if luz else 'OFF'}", (10, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.putText(frame, f"TV: {'ON' if luz else 'OFF'}", (10, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         cv2.putText(frame, f"Volume: {volume}", (10, 250), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         cv2.putText(frame, f"Cortinas: {'Abertas' if cortinas_abertas else 'Fechadas'}", (10, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         cv2.putText(frame, f"Temperatura: {temperatura} C", (10, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
@@ -114,21 +110,21 @@ def main_menu():
             fingers = hand_info["fingers_up"]
             hand_landmarks = hand_info["hand_landmarks"]
 
-            #Controlos de TV
+            #Configuração TV - LIGAR E DESLIGAR
             current_time = time.time()
             if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
                 last_touch_time = current_time
                 if touch_count % 2 == 0:
                     json_data["command"] = (
                         "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = "
-                        "(0.800071, 0.00497789, 0.0100464, 1); "  # Luz ligada
+                        "(0.800071, 0.00497789, 0.0100464, 1); "  # led tv ligada
                         "bpy.data.materials[\"screen\"].node_tree.nodes[\"Mix Shader\"].inputs[0].default_value = 0.856396"  # TV ligada
                     )
                     luz = True
                 else:
                     json_data["command"] = (
                         "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = "
-                        "(0.771298, 0.800079, 0.778437, 1); "  # Luz desligada
+                        "(0.771298, 0.800079, 0.778437, 1); "  # led tv desligada
                         "bpy.data.materials[\"screen\"].node_tree.nodes[\"Mix Shader\"].inputs[0].default_value = 0.14211"  # TV desligada
                     )
                     luz = False
@@ -137,7 +133,6 @@ def main_menu():
             # Exibe número de dedos levantados
             cv2.putText(frame, f"{hand} HAND: {fingers} dedo/s", (10, 350), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
-            #controlos de luz
             # 1 dedo levantado: Controla a luz
             if fingers == 1 and not luz:
                 json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.136535, 0.800149, 0.0275523, 1)"
@@ -147,33 +142,31 @@ def main_menu():
                 json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.769648, 0.800157, 0.739828, 1)"
 
             # 2 dedos levantados: Ajusta o volume
-            # elif fingers == 2:
-            #     volume = min(volume + 1, 10)  # Aumenta o volume
-            # elif fingers == 3:
-            #     volume = max(volume - 1, 0)  # Diminui o volume
+            elif fingers == 2:
+                volume = min(volume + 1, 10)  # Aumenta o volume
+            elif fingers == 3:
+                volume = max(volume - 1, 0)  # Diminui o volume
 
-            #Controlo de cortinas
             # 3 dedos levantados: Controla cortinas
             elif fingers == 3:
                 cortinas_abertas = not cortinas_abertas
 
-            #Controlo de Ar Condicionado
             # 4 dedos levantados: Ajusta a temperatura
             elif fingers == 4:
                 temperatura += 1
+
+            # 5 dedos com a mão esquerda e inicia a animacao no blender (cortina)
             elif hand=="Left" and fingers == 5:
                 json_data["command"] = "bpy.ops.screen.animation_play()"
             else:
                 json_data['command'] = ""
 
-            # Detecção de toque entre polegar e indicador
+            # Configuração para o funcionamento de ligar e desligar a luz
             if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
                 last_touch_time = current_time
                 touch_count += 1
                 if hand=="Right" and touch_count % 3 == 0:  # Alterna entre Luz, Volume, Cortinas
                     luz = True
-                    cortinas_abertas = False
-                    volume = 5
                     json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.136535, 0.800149, 0.0275523, 1)"
                 elif hand=="Right" and touch_count % 3 == 1:  # Alterna volume
                     luz = False
@@ -182,8 +175,6 @@ def main_menu():
                     json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.769648, 0.800157, 0.739828, 1)"
                 else:  # Alterna cortinas
                     luz = False
-                    cortinas_abertas = True
-                    volume = 5
 
         # Mostra o frame
         cv2.imshow("Camera", frame)
@@ -240,5 +231,3 @@ def start_server():
     main_menu()
     print("Servidor está prontíssimo. Pressiona 'Q' para parar.")
 
-# Inicia o servidor
-start_server
