@@ -85,7 +85,7 @@ def detect_thumb_index_touch(hand_landmarks):
         return True
     return False
 
-detector = ObjectDetection()
+detector = ObjectDetection(model_path="../models/yolo11s.pt")
 
 # Função principal do menu
 def main_menu():
@@ -251,3 +251,5 @@ def start_server():
     main_menu()
     print("Servidor está prontíssimo. Pressiona 'Q' para parar.")
 
+if __name__ == "__main__":
+    start_server()
