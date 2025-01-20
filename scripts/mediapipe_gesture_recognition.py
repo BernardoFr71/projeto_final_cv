@@ -153,6 +153,8 @@ def main_menu():
             # 4 dedos levantados: Ajusta a temperatura
             elif fingers == 4:
                 temperatura += 1
+
+            # 5 dedos com a mão esquerda e inicia a animacao no blender
             elif hand=="Left" and fingers == 5:
                 json_data["command"] = "bpy.ops.screen.animation_play()"
             else:
