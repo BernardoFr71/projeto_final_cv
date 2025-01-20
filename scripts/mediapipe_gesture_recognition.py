@@ -110,20 +110,21 @@ def main_menu():
             fingers = hand_info["fingers_up"]
             hand_landmarks = hand_info["hand_landmarks"]
 
+            #Configuração TV - LIGAR E DESLIGAR
             current_time = time.time()
             if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
                 last_touch_time = current_time
                 if touch_count % 2 == 0:
                     json_data["command"] = (
                         "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = "
-                        "(0.800071, 0.00497789, 0.0100464, 1); "  # Luz ligada
+                        "(0.800071, 0.00497789, 0.0100464, 1); "  # led tv ligada
                         "bpy.data.materials[\"screen\"].node_tree.nodes[\"Mix Shader\"].inputs[0].default_value = 0.856396"  # TV ligada
                     )
                     luz = True
                 else:
                     json_data["command"] = (
                         "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = "
-                        "(0.771298, 0.800079, 0.778437, 1); "  # Luz desligada
+                        "(0.771298, 0.800079, 0.778437, 1); "  # led tv desligada
                         "bpy.data.materials[\"screen\"].node_tree.nodes[\"Mix Shader\"].inputs[0].default_value = 0.14211"  # TV desligada
                     )
                     luz = False
@@ -154,20 +155,18 @@ def main_menu():
             elif fingers == 4:
                 temperatura += 1
 
-            # 5 dedos com a mão esquerda e inicia a animacao no blender
+            # 5 dedos com a mão esquerda e inicia a animacao no blender (cortina)
             elif hand=="Left" and fingers == 5:
                 json_data["command"] = "bpy.ops.screen.animation_play()"
             else:
                 json_data['command'] = ""
 
-            # Detecção de toque entre polegar e indicador
+            # Configuração para o funcionamento de ligar e desligar a luz
             if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
                 last_touch_time = current_time
                 touch_count += 1
                 if hand=="Right" and touch_count % 3 == 0:  # Alterna entre Luz, Volume, Cortinas
                     luz = True
-                    cortinas_abertas = False
-                    volume = 5
                     json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.136535, 0.800149, 0.0275523, 1)"
                 elif hand=="Right" and touch_count % 3 == 1:  # Alterna volume
                     luz = False
@@ -176,8 +175,6 @@ def main_menu():
                     json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.769648, 0.800157, 0.739828, 1)"
                 else:  # Alterna cortinas
                     luz = False
-                    cortinas_abertas = True
-                    volume = 5
 
         # Mostra o frame
         cv2.imshow("Camera", frame)
@@ -234,5 +231,3 @@ def start_server():
     main_menu()
     print("Servidor está prontíssimo. Pressiona 'Q' para parar.")
 
-# Inicia o servidor
-start_server
