@@ -21,10 +21,9 @@ last_touch_time = 0
 
 #Lista para mostrar objeto a ser controlado
 object_control_mapping = {
-    "remote": "TV",
+    "spoon": "TV",
     "cup": "Lâmpada",
     "cell phone": "Cortinas",
-    "book": "Ar condicionado"
 }
 
 
@@ -73,7 +72,7 @@ def count_fingers(hand_landmarks):
 
 # Função para detectar o toque entre o polegar e o indicador
 def detect_thumb_index_touch(hand_landmarks):
-    global last_touch_time  # Declarando a variável global aqui
+    global last_touch_time
     thumb_tip = hand_landmarks.landmark[4]  # Posição do polegar
     index_tip = hand_landmarks.landmark[8]  # Posição do dedo indicador
 
@@ -127,11 +126,13 @@ def main_menu():
             hand_landmarks = hand_info["hand_landmarks"]
 
             #Configuração TV - LIGAR E DESLIGAR
-            if "remote" in detected_objects:
+            if "spoon" in detected_objects:
+                print("DENTRO TV")
                 current_time = time.time()
                 if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
                     last_touch_time = current_time
                     if touch_count % 2 == 0:
+                        print("LIGAR/DESLIGAR TV")
                         json_data["command"] = (
                             "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = "
                             "(0.800071, 0.00497789, 0.0100464, 1); "  # led tv ligada
@@ -139,6 +140,7 @@ def main_menu():
                         )
                         luz = True
                     else:
+                        print("LIGAR/DESLIGAR TV")
                         json_data["command"] = (
                             "bpy.data.materials[\"led\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = "
                             "(0.771298, 0.800079, 0.778437, 1); "  # led tv desligada
@@ -176,25 +178,11 @@ def main_menu():
             # 5 dedos com a mão esquerda e inicia a animacao no blender (cortina)
             if "cell phone" in detected_objects:
                 if hand=="Left" and fingers == 5:
+                    print("ANIMACAO CORTINAS ATIVADA")
                     json_data["command"] = "bpy.ops.screen.animation_play()"
                 else:
                     json_data['command'] = ""
 
-            # Configuração para o funcionamento de ligar e desligar a luz
-            if "bottle" in detected_objects:
-                if detect_thumb_index_touch(hand_landmarks) and (current_time - last_touch_time > 1.0):
-                    last_touch_time = current_time
-                    touch_count += 1
-                    if hand=="Right" and touch_count % 3 == 0:  # Alterna entre Luz, Volume, Cortinas
-                        luz = True
-                        json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.136535, 0.800149, 0.0275523, 1)"
-                    elif hand=="Right" and touch_count % 3 == 1:  # Alterna volume
-                        luz = False
-                        cortinas_abertas = False
-                        volume = 10
-                        json_data["command"] = "bpy.data.materials[\"Material.007\"].node_tree.nodes[\"Emission\"].inputs[0].default_value = (0.769648, 0.800157, 0.739828, 1)"
-                    else:  # Alterna cortinas
-                        luz = False
 
         # Mostra o frame
         cv2.imshow("Camera", frame)

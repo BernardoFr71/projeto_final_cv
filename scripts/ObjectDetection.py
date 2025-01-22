@@ -14,7 +14,7 @@ class ObjectDetection:
         self.model = YOLO(model_path)
         self.conf_threshold = conf_threshold
 
-        self.target_classes = ["remote", "cup", "cell phone", "book"]
+        self.target_classes = ["bottle", "cup", "cell phone", "spoon"]
         self.classes_index = self.get_class_index()
 
     def get_class_index(self):
@@ -37,23 +37,16 @@ class ObjectDetection:
     def predict_and_detect(self, img, classes=[]):
         results = self.predict(img)
 
-        # Lista de objetos detectados com informações
-        detected_objects = []
+        # Lista apenas com os nomes das classes detectadas
+        class_names = []
 
         for result in results:
             for box in result.boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                area = (x2 - x1) * (y2 - y1)
                 class_idx = int(box.cls[0])
                 class_name = result.names[class_idx]
+                class_names.append(class_name)
 
-                detected_objects.append({
-                    "class_name": class_name,
-                    "position": (x1, y1, x2, y2),
-                    "area": area,
-                })
-
-        return detected_objects
+        return class_names
 
 # Exemplo de uso
 if __name__ == "__main__":
